@@ -1,312 +1,536 @@
-# Social Media Content Factory
+# Social Media Factory v2.0 - Complete Documentation
 
-An automated n8n workflow for generating, approving, and publishing AI-powered social media content across multiple platforms.
+## Table of Contents
+1. [Overview](#overview)
+2. [System Architecture](#system-architecture)
+3. [Workflow Diagram](#workflow-diagram)
+4. [Setup Guide](#setup-guide)
+5. [Node Configuration](#node-configuration)
+6. [Troubleshooting](#troubleshooting)
+
+---
 
 ## Overview
 
-The Social Media Content Factory is a comprehensive automation workflow that streamlines the entire social media content creation process. It generates platform-specific content using AI, fetches relevant images, requires human approval, and publishes across LinkedIn, Instagram, Facebook, X (Twitter), TikTok, Threads, and YouTube Shorts.
+### Purpose
+Automates end-to-end social media content creation, compliance checking, approval, and multi-platform publishing for Advino Healthcare.
 
-## Workflow Architecture
+### Platforms Supported
+- Instagram (Feed Posts, Carousels, Stories)
+- Facebook (Page Posts)
+- LinkedIn (Organization Posts)
+- X/Twitter (Basic support)
 
+### Content Types
+- **Static**: Single image posts
+- **Carousel**: Multi-slide presentations (3 slides)
+- **Reel**: Short-form video content
+
+### Key Features
+- AI-powered content generation with GPT-4o-mini
+- Automated hashtag research via SerpAPI
+- Compliance validation (MCI healthcare guidelines)
+- Multi-source asset generation (Pexels, Templated.io, OpenAI)
+- Email-based approval workflow
+- Automated scheduling and publishing
+- Performance tracking and reporting
+
+---
+
+## System Architecture
+
+### High-Level Flow
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         WORKFLOW DIAGRAM                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌──────────────┐                                               │
-│  │Google Sheets │                                               │
-│  │   Trigger    │                                               │
-│  └──────┬───────┘                                               │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌──────────────────────────────────┐                          │
-│  │   AI Content Generation (GPT-4)   │◄────┐                    │
-│  │  - Platform-specific posts        │     │                    │
-│  │  - Hashtags & CTAs               │     │                    │
-│  │  - Image suggestions             │  ┌──┴─────────┐          │
-│  └──────┬───────────────────────────┘  │  SerpAPI   │          │
-│         │                               │ Web Search │          │
-│         ▼                               └────────────┘          │
-│  ┌──────────────────────────────────┐                          │
-│  │    Email for Human Approval      │                          │
-│  │  - HTML formatted preview        │                          │
-│  │  - Approve/Reject buttons        │                          │
-│  └──────┬───────────────────────────┘                          │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌──────────────┐     ┌─────────────────────────┐              │
-│  │  Approved?   │────►│    Pexels API Search    │              │
-│  └──────┬───────┘ NO  │  - Fetch relevant images│              │
-│         │YES          └───────┬─────────────────┘              │
-│         ▼                     ▼                                 │
-│  ┌──────────────────────────────────┐                          │
-│  │     Image Processing Pipeline     │                          │
-│  │  1. Download selected image       │                          │
-│  │  2. Upload to imgbb hosting       │                          │
-│  │  3. Generate public URL           │                          │
-│  └──────┬───────────────────────────┘                          │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌──────────────────────────────────────────────┐              │
-│  │         Platform Publishing Matrix           │              │
-│  │                                               │              │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  │              │
-│  │  │Instagram │  │ Facebook │  │ LinkedIn │  │              │
-│  │  └──────────┘  └──────────┘  └──────────┘  │              │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  │              │
-│  │  │    X     │  │  TikTok  │  │ Threads  │  │              │
-│  │  └──────────┘  └──────────┘  └──────────┘  │              │
-│  │         ┌──────────────────┐                │              │
-│  │         │  YouTube Shorts  │                │              │
-│  │         └──────────────────┘                │              │
-│  └──────┬───────────────────────────────────────┘              │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌──────────────────────────────────┐                          │
-│  │    Results Email Notification    │                          │
-│  │  - Publishing status per platform│                          │
-│  │  - Links to published content    │                          │
-│  └──────────────────────────────────┘                          │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+START (Daily 4 AM or New Row Added)
+   │
+   ▼
+[Read Google Sheets Calendar]
+   │
+   ▼
+[Filter Today's Posts] (scheduled_date == today AND status == "Scheduled")
+   │
+   ▼
+[Normalize Data] (Handle column name variations)
+   │
+   ▼
+[AI Content Generator]
+   ├─ SerpAPI (Hashtag Research)
+   ├─ GPT-4o-mini (Content Generation)
+   └─ JSON Parser (Structure Validation)
+   │
+   ▼
+[Compliance Validator]
+   ├─ Check prohibited claims
+   ├─ Verify disclaimers
+   └─ Validate completeness
+   │
+   ├─ PASS ──→ [Route by Content Type]
+   │              │
+   │              ├─ Static ──→ [Pexels Search] ──→ [Download] ──→ [Upload ImgBB]
+   │              ├─ Carousel → [Templated.io API]
+   │              └─ Reel ────→ [OpenAI DALL-E]
+   │              │
+   │              ▼
+   │           [Merge Assets]
+   │              │
+   │              ▼
+   │           [Send Approval Email] (Wait 2 hours)
+   │              │
+   │              ├─ APPROVED ──→ [Publish to Platforms]
+   │              │                  ├─ Instagram (2-step: Create + Publish)
+   │              │                  ├─ Facebook (Single POST)
+   │              │                  └─ LinkedIn (ugcPosts API)
+   │              │                  │
+   │              │                  ▼
+   │              │               [Update Sheet Status]
+   │              │                  │
+   │              │                  ▼
+   │              │               [Aggregate Results]
+   │              │                  │
+   │              │                  ▼
+   │              │               [Send Daily Report]
+   │              │
+   │              └─ REJECTED ──→ [Mark as Rejected] ──→ END
+   │
+   └─ FAIL ──→ [Send Compliance Alert] ──→ END
 ```
 
-## Features
+### Detailed Architecture Diagram
+```
+┌───────────────────────────────────────────────────────────┐
+│                    TRIGGER LAYER                          │
+│  ┌──────────────┐           ┌──────────────┐             │
+│  │  Schedule    │           │  Sheet Row   │             │
+│  │  (4 AM)      │           │  Trigger     │             │
+│  └──────┬───────┘           └──────┬───────┘             │
+└─────────┼──────────────────────────┼───────────────────────┘
+          └──────────┬───────────────┘
+                     │
+┌────────────────────▼──────────────────────────────────────┐
+│                  DATA LAYER                                │
+│  Read Sheets → Filter Today → Normalize → Pass to AI      │
+└────────────────────┬──────────────────────────────────────┘
+                     │
+┌────────────────────▼──────────────────────────────────────┐
+│                CONTENT GENERATION LAYER                    │
+│  ┌─────────────────────────────────────────────────┐      │
+│  │  AI Agent (GPT-4o-mini + SerpAPI + Parser)     │      │
+│  │  Generates: Captions, Hashtags, Image Prompts  │      │
+│  └─────────────────────┬───────────────────────────┘      │
+└────────────────────────┼──────────────────────────────────┘
+                         │
+┌────────────────────────▼──────────────────────────────────┐
+│              COMPLIANCE & VALIDATION LAYER                 │
+│  Validate → Pass/Fail → Alert if Failed                   │
+└────────────────────────┬──────────────────────────────────┘
+                         │
+┌────────────────────────▼──────────────────────────────────┐
+│                 ASSET GENERATION LAYER                     │
+│  Switch by Type:                                           │
+│  ├─ Static: Pexels → Download → ImgBB                    │
+│  ├─ Carousel: Templated.io API                           │
+│  └─ Reel: OpenAI DALL-E → ImgBB                          │
+└────────────────────────┬──────────────────────────────────┘
+                         │
+┌────────────────────────▼──────────────────────────────────┐
+│                  APPROVAL LAYER                            │
+│  Send Email → Wait for Response → Route                   │
+└────────────────────────┬──────────────────────────────────┘
+                         │
+┌────────────────────────▼──────────────────────────────────┐
+│               PUBLISHING LAYER (Parallel)                  │
+│  ├─ Instagram: Create Media → Publish                     │
+│  ├─ Facebook: POST /photos                                │
+│  └─ LinkedIn: POST /ugcPosts                              │
+└────────────────────────┬──────────────────────────────────┘
+                         │
+┌────────────────────────▼──────────────────────────────────┐
+│                REPORTING LAYER                             │
+│  Update Sheet → Aggregate → Generate Report → Send Email  │
+└────────────────────────────────────────────────────────────┘
+```
 
-### Core Capabilities
-- **Multi-Platform Support**: Generates tailored content for 7 major social media platforms
-- **AI-Powered Content Creation**: Uses GPT-4 for intelligent content generation
-- **Web Research Integration**: Leverages SerpAPI for real-time information gathering
-- **Automated Image Sourcing**: Integrates with Pexels API for relevant visual content
-- **Human-in-the-Loop Approval**: Email-based approval system before publishing
-- **Batch Processing**: Processes multiple content requests from Google Sheets
-- **Status Tracking**: Complete audit trail of content creation and publishing
+---
 
-### Platform-Specific Features
-Each platform receives customized content including:
-- Optimized post text/captions
-- Platform-appropriate hashtags
-- Relevant emojis (where applicable)
-- Call-to-action statements
-- Image/video suggestions
-- Character limit compliance (X/Twitter)
+## Workflow Diagram
 
-## Prerequisites
+### Node Sequence
+```
+Node  | Name                          | Type          | Key Function
+------|-------------------------------|---------------|---------------------------
+1     | Daily Scheduler               | Trigger       | Runs at 4 AM daily
+2     | New Row Trigger               | Trigger       | On sheet row add
+3     | Read Calendar Sheet           | Google Sheets | Fetch all rows
+4     | Filter Today's Posts          | IF            | Date + status filter
+5     | Normalize Sheet Data          | Code          | Standardize columns
+6     | AI Content Generator          | LangChain     | Generate content
+7     | SerpAPI Tool                  | Tool          | Hashtag research
+8     | GPT-4o-mini Model             | LLM           | Language model
+9     | Content Structure Parser      | Parser        | JSON validation
+10    | Compliance Validator          | Code          | Check guidelines
+11    | Compliance Passed?            | IF            | Route decision
+12    | Handle Compliance Failure     | Code          | Error handling
+13    | Send Compliance Alert         | Gmail         | Alert email
+14    | Route by Content Type         | Switch        | Static/Carousel/Reel
+15    | Search Pexels Images          | HTTP          | Image search
+16    | Extract Image Data            | Set           | Parse response
+17    | Download Image                | HTTP          | Get binary
+18    | Upload to ImgBB               | HTTP          | Host image
+19    | Generate Carousel             | HTTP          | Templated.io
+20    | Generate AI Image             | OpenAI        | DALL-E fallback
+21    | Merge All Assets              | Merge         | Combine paths
+22    | Send for Approval             | Gmail         | Approval email
+23    | Is Approved?                  | IF            | Check response
+24    | Handle Rejection              | Code          | Rejection logic
+25    | Mark as Rejected              | Google Sheets | Update status
+26    | Instagram - Create Media      | HTTP          | Graph API
+27    | Instagram - Publish           | Facebook API  | Publish post
+28    | Facebook - Post               | Facebook API  | Direct post
+29    | LinkedIn - Post               | LinkedIn      | Organization post
+30    | Merge Platform Results        | Merge         | Combine responses
+31    | Update Sheet Status           | Google Sheets | Write results
+32    | Aggregate Daily Results       | Aggregate     | Collect posts
+33    | Prepare Results Email         | LangChain     | HTML report
+34    | GPT Model for Reports         | LLM           | Email formatting
+35    | Send Results Email            | Gmail         | Final report
+```
 
-### Required Services and API Keys
+---
 
-1. **OpenAI API Key**
-   - Required for GPT-4 content generation
-   - Sign up at: https://platform.openai.com/
+## Setup Guide
 
-2. **Google Sheets API**
-   - For trigger and data input
-   - Setup OAuth2 credentials
+### Prerequisites
+1. n8n instance (self-hosted or cloud)
+2. Google Account with Sheets API access
+3. API Keys needed:
+   - OpenAI API key
+   - SerpAPI key (socialvi01@gmail.com / qwerty!123)
+   - Pexels API key
+   - ImgBB API key
+   - Templated.io API key (optional)
+4. Social Media Access:
+   - Facebook Page ID + Access Token
+   - Instagram Business Account ID
+   - LinkedIn Organization ID + OAuth
+5. Gmail for approvals/reports
 
-3. **Pexels API Key**
-   - For image sourcing
-   - Get your API key at: https://www.pexels.com/api/
+### Step 1: Create Google Sheet
+Create sheet with these columns:
+```
+Post ID | Scheduled Date | Platform | Content Type | Topic | Key Message | 
+CTA | Tone | Target Audience | Graphic Style | Asset Link | Asset Source | 
+Video Description | Status | Note Metric | Priority
+```
 
-4. **SerpAPI Key**
-   - For web search capabilities
-   - Register at: https://serpapi.com/
+Example row:
+```
+POST_001 | 2025-10-01 | Instagram | Carousel | Navratri Elderly Care | 
+Stay safe during festivities | Call: +91 96 2445 2445 | Empathetic | 
+Seniors in Gujarat | Canva Blue | https://pexels.com/... | Pexels | 
+N/A | Scheduled | 8% engagement | High
+```
 
-5. **imgbb API Key**
-   - For image hosting
-   - Sign up at: https://imgbb.com/
+### Step 2: Import Workflow
+1. Copy JSON from artifact
+2. n8n: Create Workflow → Import from JSON
+3. Replace placeholders:
+   - `YOUR_SHEET_ID` → Your Google Sheet ID
+   - `YOUR_OPENAI_CREDS` → OpenAI credential name
+   - `YOUR_SERP_CREDS` → SerpAPI credential
+   - `YOUR_PEXELS_API_KEY` → From pexels.com/api
+   - `YOUR_IMGBB_API_KEY` → From imgbb.com
+   - `YOUR_FB_GRAPH_CREDS` → Facebook credential
+   - `YOUR_LINKEDIN_CREDS` → LinkedIn credential
+   - `YOUR_APPROVAL_EMAIL` → Your email
+   - `YOUR_REPORT_EMAIL` → Team email
 
-6. **Gmail OAuth2**
-   - For sending approval and result emails
-   - Configure OAuth2 credentials: https://docs.n8n.io/integrations/builtin/credentials/google/
+### Step 3: Configure Credentials
 
-7. **Social Media Platform Credentials**
-   - Facebook Graph API
-   - LinkedIn Community Management OAuth2
-   - Instagram Business Account
-   - Additional platform APIs as needed
+#### Google Sheets OAuth2
+```
+1. Google Cloud Console → Create OAuth 2.0 Client
+2. Redirect URI: https://your-n8n.com/rest/oauth2-credential/callback
+3. Copy Client ID + Secret to n8n
+4. Authorize and test
+```
 
-## Installation
+#### Facebook Graph API
+```
+1. developers.facebook.com → Create App
+2. Add Instagram Graph API
+3. Generate token with permissions:
+   - pages_read_engagement
+   - pages_manage_posts
+   - instagram_basic
+   - instagram_content_publish
+4. Get Page ID from Page Settings
+5. Get Instagram Business ID:
+   GET /{page-id}?fields=instagram_business_account
+```
 
-### Step 1: Import Workflow
-1. Open your n8n instance
-2. Navigate to Workflows
-3. Click "Import"
-4. Upload the provided JSON workflow file
+#### LinkedIn OAuth2
+```
+1. linkedin.com/developers → Create App
+2. Add redirect URI
+3. Request Community Management API access
+4. Get Organization ID from:
+   GET /v2/organizationalEntityAcls?q=roleAssignee
+```
 
-### Step 2: Configure Credentials
-Update all credential nodes with your API keys:
+### Step 4: Test Nodes
+Test in order:
+1. Read Calendar Sheet → Should return rows
+2. Filter Today's Posts → Set row date to today
+3. AI Content Generator → Verify JSON output
+4. Compliance Validator → Check error detection
+5. Asset Generation → Test each branch
+6. Approval Email → Send to yourself
+7. Publishing → Start with Instagram
 
-1. **OpenAI Nodes**
-   - Navigate to each OpenAI node
-   - Add your API key to credentials
+### Step 5: Activate
+```
+Daily Scheduler settings:
+- Trigger at: 4:00 AM
+- Timezone: Asia/Kolkata
+- Active: YES
+```
 
-2. **Google Sheets Trigger**
-   - Configure OAuth2 authentication
-   - Link to your input spreadsheet
+---
 
-3. **Pexels Search Images**
-   - Add your Pexels API key in the Authorization header
+## Node Configuration
 
-4. **SerpAPI Tool**
-   - Configure with your SerpAPI key
+### AI Content Generator Prompt
+```
+Generate comprehensive social media content for ALL platforms.
 
-5. **Image Hosting (imgbb)**
-   - Add your imgbb API key
+# Post Details
+- Post ID: {{ $json.post_id }}
+- Content Type: {{ $json.content_type }}
+- Theme: {{ $json.theme_topic }}
+- Key Message: {{ $json.key_message }}
 
-6. **Gmail Nodes**
-   - Configure OAuth2 for both approval and results emails
-   - Update recipient email addresses
+# Tasks
+1. Use SerpAPI to find 15-20 trending hashtags
+2. Generate platform-specific content:
+   - Instagram: Caption (150-200 words), 20-30 hashtags
+   - Facebook: Post (200-300 words), poll, 10-15 hashtags
+   - LinkedIn: Professional (250-350 words), 10-15 hashtags
+   - X: Tweet (280 chars), thread, 3-5 hashtags
+3. Create image prompts (Static: 1, Carousel: 3, Reel: video script)
+4. Include compliance disclaimer
+5. Format with Social Media Content Tool
+```
 
-7. **Social Media Platforms**
-   - Configure each platform's API credentials
-   - Update page/account IDs as needed
+### Compliance Validator Logic
+```javascript
+// Prohibited claims
+const prohibited = ['cure', 'guaranteed', '100% effective', 'miracle'];
+prohibited.forEach(claim => {
+  if (content.includes(claim)) {
+    validation.errors.push(`Prohibited: "${claim}"`);
+  }
+});
 
-### Step 3: Google Sheets Setup
-Create an input spreadsheet with the following columns:
-- Post ID
-- Platform
-- Scheduled Date
-- Post Type
-- Topic
-- Key Message
-- Target Audience
-- Value Proposition
-- CTA (Call to Action)
-- Tone
-- Graphic Style
-- Asset Link
-- Draft Content
-- Status
-- Note metric
+// Disclaimer check
+let hasDisclaimer = false;
+for (const platform in content.platform_posts) {
+  if (content.platform_posts[platform].caption?.includes('consult')) {
+    hasDisclaimer = true;
+  }
+}
+if (!hasDisclaimer) {
+  validation.warnings.push('Add healthcare disclaimer');
+}
 
-### Step 4: Customize Prompts
-Modify the AI prompts in the "Social Media Content Factory" node to match your brand voice and requirements.
+// Platform completeness
+['Instagram', 'Facebook', 'LinkedIn', 'X'].forEach(platform => {
+  if (!content.platform_posts[platform]) {
+    validation.errors.push(`Missing ${platform} content`);
+  }
+});
 
-## Usage
+// Result
+validation.passed = validation.errors.length === 0;
+```
 
-### Basic Workflow
+### Instagram Publishing (2-Step)
+```javascript
+// Step 1: Create Media Container
+POST /v20.0/{instagram-id}/media
+Params: { image_url, caption }
+Response: { id: "creation_id" }
 
-1. **Add Content Request**
-   - Enter new row in Google Sheets with content requirements
-   - Workflow triggers automatically on new row addition
+// Step 2: Publish
+POST /v20.0/{instagram-id}/media_publish
+Params: { creation_id }
+Response: { id: "post_id" }
 
-2. **Content Generation**
-   - AI generates platform-specific content
-   - Web search enriches content with current information
-   - System suggests relevant images
+// For Carousels: Create 3 containers, then carousel container, then publish
+```
 
-3. **Approval Process**
-   - HTML-formatted email sent for review
-   - Click approve/reject in email
-   - 45-minute timeout for approval response
+### Facebook Publishing (1-Step)
+```javascript
+POST /v20.0/{page-id}/photos
+Params: {
+  message: "Caption with hashtags",
+  url: "https://i.ibb.co/image.jpg",
+  published: true
+}
+Response: { id: "post_id" }
+```
 
-4. **Image Processing**
-   - Upon approval, workflow searches Pexels
-   - Downloads and hosts selected image
-   - Generates public URL for posting
+### LinkedIn Publishing
+```javascript
+POST /v2/ugcPosts
+Body: {
+  author: "urn:li:organization:123456",
+  lifecycleState: "PUBLISHED",
+  specificContent: {
+    "com.linkedin.ugc.ShareContent": {
+      shareCommentary: { text: "Post text" },
+      shareMediaCategory: "IMAGE",
+      media: [{ media: "urn:li:digitalmediaAsset:..." }]
+    }
+  }
+}
+```
 
-5. **Publishing**
-   - Content published to selected platforms
-   - Each platform receives tailored version
-   - Error handling for failed posts
-
-6. **Results Notification**
-   - Summary email with publishing status
-   - Links to published content
-   - Error reports if any posts failed
-
-## Configuration Options
-
-### Timeout Settings
-- Default approval timeout: 45 minutes
-- Configurable in "Gmail User for Approval" node
-
-### Image Settings
-- Default image count: 10 results from Pexels
-- Orientation: Landscape (configurable)
-- Hosting expiration: Permanent (0)
-
-### Content Parameters
-- Modify brand colors, fonts, and tone in prompts
-- Adjust hashtag counts per platform
-- Configure character limits
+---
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Workflow Not Triggering**
-   - Verify Google Sheets permissions
-   - Check trigger configuration
-   - Ensure proper OAuth2 setup
+#### Issue: No items processed
+```
+Cause: Date format mismatch
+Fix: Ensure sheet uses YYYY-MM-DD format
+Test: Set Scheduled Date to today manually
+```
 
-2. **Image Upload Failures**
-   - Verify imgbb API key validity
-   - Check file size limits
-   - Ensure proper image format
+#### Issue: Compliance failures
+```
+Cause: AI generated prohibited terms
+Fix: Strengthen AI prompt:
+"CRITICAL: Never use: cure, guaranteed, miracle.
+ALWAYS include: Consult healthcare professional."
+```
 
-3. **Platform Publishing Errors**
-   - Verify API credentials are current
-   - Check platform-specific requirements
-   - Review rate limiting policies
+#### Issue: Asset generation fails
+```
+Cause: Pexels returns no results
+Fix: Add fallback in Merge Assets:
+if (!assets.image_url) {
+  assets.image_url = "https://i.ibb.co/default-advino.jpg";
+}
+```
 
-4. **Approval Email Not Received**
-   - Check spam/junk folders
-   - Verify Gmail OAuth2 configuration
-   - Confirm recipient email address
+#### Issue: Instagram "Invalid image URL"
+```
+Cause: ImgBB URL not direct link
+Fix: Ensure URL ends in .jpg or .png
+Test: Open URL in browser - should show image directly
+```
 
-### Error Handling
-The workflow includes built-in error handling:
-- Continues execution on platform publishing failures
-- Logs errors in results email
-- Provides fallback for missing images
+#### Issue: "Expression error: Cannot read property"
+```
+Cause: Missing JSON field
+Fix: Use safe navigation:
+{{ $json.field?.subfield || 'default' }}
+Example: {{ $json.platform_posts?.Instagram?.caption || '' }}
+```
 
-## Best Practices
+#### Issue: API timeout
+```
+Cause: Slow API response
+Fix: Increase timeout in node settings:
+{
+  "options": {
+    "timeout": 60000
+  }
+}
+```
 
-1. **Content Planning**
-   - Batch content requests for efficiency
-   - Include detailed briefs in spreadsheet
-   - Plan content calendar in advance
+#### Issue: Sheet update fails
+```
+Cause: Invalid row_number
+Fix: Add error handling:
+{
+  "retryOnFail": true,
+  "maxTries": 3,
+  "continueOnFail": true
+}
+```
 
-2. **Quality Control**
-   - Review AI-generated content before approval
-   - Verify image relevance
-   - Check platform-specific formatting
+### Performance Metrics
+```
+Single Post Execution:
+- Content Generation: 30-60s
+- Asset Generation: 15-30s
+- Publishing: 10-20s
+Total: ~1-2 minutes (excluding approval)
 
-3. **Performance Optimization**
-   - Monitor API usage and costs
-   - Implement rate limiting if needed
-   - Archive completed content regularly
+Daily Batch (5 posts):
+- Sequential: ~10 minutes
+- With approval: Variable (user-dependent)
+```
 
-4. **Security**
-   - Rotate API keys periodically
-   - Use environment variables for sensitive data
-   - Implement access controls on Google Sheets
+### API Rate Limits
+```
+Service          | Free Tier        | Recommendation
+-----------------|------------------|------------------
+OpenAI           | N/A              | Paid ($10/mo min)
+SerpAPI          | 100/month        | Start free
+Pexels           | 200/hour         | Free sufficient
+ImgBB            | Unlimited        | Free forever
+Templated.io     | 100/month        | Start free
+Instagram API    | 200 calls/hour   | Sufficient
+Facebook API     | Rate limited     | Use page token
+LinkedIn API     | Throttled        | Request quota
+```
 
-## Limitations
+### Error Handling Strategy
+```
+Critical Nodes (Publishing):
+- retryOnFail: true
+- maxTries: 2
+- waitBetweenTries: 5000ms
 
-- Platform API rate limits apply
-- Image hosting dependent on imgbb service
-- Approval timeout cannot exceed email service limits
-- Some platforms may require additional setup for full automation
+Non-Critical (Image search):
+- continueOnFail: true
+- Log error, continue workflow
 
-## Support
-
-For issues or questions:
-1. Check the troubleshooting section
-2. Review n8n documentation: https://docs.n8n.io/
-3. Consult platform-specific API documentation
-4. Contact your system administrator
-
-## License
-
-This workflow is provided as-is for use within your organization. Modify and distribute according to your internal policies.
-
-## Version History
-
-- v1.0: Initial release with 7 platform support
-- Features AI content generation, image sourcing, and approval workflow
+Compliance Failures:
+- Stop workflow
+- Send alert email
+- Require manual review
+```
 
 ---
 
-Built with n8n - The workflow automation platform
+## Best Practices
+
+1. **Test incrementally**: Test each node before running full workflow
+2. **Monitor daily**: Check execution history for failures
+3. **Update prompts**: Refine AI prompts based on output quality
+4. **Cache assets**: Reuse Pexels images for similar themes
+5. **Set alerts**: Email notifications for critical failures
+6. **Review compliance**: Weekly audit of compliance failures
+7. **Track performance**: Analyze which content types perform best
+8. **Backup credentials**: Store API keys in secure password manager
+9. **Document changes**: Keep log of workflow modifications
+10. **Regular maintenance**: Update API credentials before expiry
+
+---
+
+## Support & Resources
+
+- **n8n Documentation**: https://docs.n8n.io
+- **OpenAI API Docs**: https://platform.openai.com/docs
+- **Facebook Graph API**: https://developers.facebook.com/docs/graph-api
+- **Instagram API**: https://developers.facebook.com/docs/instagram-api
+- **LinkedIn API**: https://docs.microsoft.com/en-us/linkedin
+- **Pexels API**: https://www.pexels.com/api/documentation
+- **SerpAPI Docs**: https://serpapi.com/search-api
+
+For workflow-specific issues, review execution logs in n8n and check node error messages.
