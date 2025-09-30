@@ -204,7 +204,7 @@ Node  | Name                          | Type          | Key Function
 2. Google Account with Sheets API access
 3. API Keys needed:
    - OpenAI API key
-   - SerpAPI key (socialvi01@gmail.com / qwerty!123)
+   - SerpAPI key 
    - Pexels API key
    - ImgBB API key
    - Templated.io API key (optional)
